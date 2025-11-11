@@ -11,8 +11,7 @@ export default function PresetLibrary() {
   };
 
   const handlePreview = (object: SingingObject) => {
-    // Show preview animation
-    alert(`🎵 Playing preview for ${object.object_name}...`);
+    alert(`🎵 Playing preview for ${object.name}...`);
   };
 
   return (
@@ -37,7 +36,6 @@ export default function PresetLibrary() {
             }}
           >
             <div className="flex flex-col items-center space-y-4">
-              {/* Icon with animation */}
               <div
                 className="text-6xl animate-pulse"
                 style={{ animationDuration: '2s' }}
@@ -45,27 +43,23 @@ export default function PresetLibrary() {
                 {object.icon}
               </div>
 
-              {/* Object name */}
               <h3 className="text-xl font-bold text-gray-800 text-center">
-                {object.object_name}
+                {object.name}
               </h3>
 
-              {/* Genre and vocal type badge */}
               <div className="flex gap-2 flex-wrap justify-center">
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                   {object.genre}
                 </span>
                 <span className="px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-medium uppercase">
-                  {object.vocal_range}
+                  {object.vocalRange}
                 </span>
               </div>
 
-              {/* Personality summary */}
               <p className="text-sm text-gray-600 text-center line-clamp-3">
                 {object.personality}
               </p>
 
-              {/* Mood indicators */}
               <div className="w-full space-y-1 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-500">Mood</span>
@@ -89,7 +83,6 @@ export default function PresetLibrary() {
                 </div>
               </div>
 
-              {/* Action buttons */}
               <div className="flex gap-2 w-full mt-4">
                 <button
                   onClick={() => handlePreview(object)}

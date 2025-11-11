@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useStudioStore } from '../lib/store';
 import { SingingObject } from '../lib/types';
 import { GENRE_OPTIONS, VOCAL_RANGE_OPTIONS } from '../lib/presets';
+import { saveObjects } from '../lib/persistence';
 
 const OBJECT_TYPE_OPTIONS = [
   { type: 'Lamp', icon: '💡' },
@@ -23,7 +24,7 @@ const OBJECT_TYPE_OPTIONS = [
 ];
 
 export default function CreateObjectModal() {
-  const { isCreateModalOpen, toggleCreateModal, addObject } = useStudioStore();
+  const { isCreateModalOpen, toggleCreateModal, addObject, objects } = useStudioStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -67,8 +68,8 @@ export default function CreateObjectModal() {
         }),
       });
       const data = await response.json();
-      if (data.success) {
-        setFormData({ ...formData, lyrics: data.lyrics });
+      if (data.ok && data.data) {
+        setFormData({ ...formData, lyrics: data.data.lyrics });
       }
     } catch (error) {
       console.error('Failed to generate lyrics:', error);
@@ -80,7 +81,6 @@ export default function CreateObjectModal() {
   const handleGeneratePreview = async () => {
     setIsGenerating(true);
     try {
-      // Simulate song preview generation
       await fetch('/api/generateSong', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -88,12 +88,22 @@ export default function CreateObjectModal() {
           objects: [
             {
               id: 'preview',
-              object_name: formData.name,
+              name: formData.name,
               type: formData.type,
               personality: formData.personality,
               genre: formData.genre,
-              vocal_range: formData.vocalRange,
+              vocalRange: formData.vocalRange,
               enabled: true,
+              volume: 0.75,
+              mood: {
+                happy: formData.moodHappy / 100,
+                calm: formData.moodCalm / 100,
+                bright: formData.moodBright / 100,
+              },
+              icon: formData.icon,
+              color: '#000000',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
             },
           ],
           harmonyMode: false,
@@ -113,13 +123,14 @@ export default function CreateObjectModal() {
       return;
     }
 
+    const now = new Date().toISOString();
     const newObject: SingingObject = {
       id: `custom-${Date.now()}`,
-      object_name: formData.name,
+      name: formData.name,
       type: formData.type,
       personality: formData.personality,
       genre: formData.genre,
-      vocal_range: formData.vocalRange,
+      vocalRange: formData.vocalRange,
       mood: {
         happy: formData.moodHappy / 100,
         calm: formData.moodCalm / 100,
@@ -127,12 +138,18 @@ export default function CreateObjectModal() {
       },
       lyrics: formData.lyrics,
       icon: formData.icon,
-      color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+      color: `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`,
       volume: 0.75,
       enabled: true,
+      createdAt: now,
+      updatedAt: now,
     };
 
     addObject(newObject);
+    
+    // Persist to localStorage
+    saveObjects([...objects, newObject]);
+    
     toggleCreateModal();
 
     // Reset form
@@ -349,7 +366,7 @@ export default function CreateObjectModal() {
                 disabled={isGenerating}
                 className="px-4 py-1 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isGenerating ? '⏳ Generating...' : '✨ Generate Lyrics'}
+                {isGenerating ? '⏳ Generating' : '✨ Generate Lyrics'}
               </button>
             </div>
             <textarea
@@ -370,7 +387,7 @@ export default function CreateObjectModal() {
               disabled={isGenerating}
               className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 transition-all shadow-lg"
             >
-              {isGenerating ? '⏳ Generating...' : '🎵 Generate Song Preview'}
+              {isGenerating ? '⏳ Generating' : '🎵 Generate Song Preview'}
             </button>
             <button
               onClick={handleSave}

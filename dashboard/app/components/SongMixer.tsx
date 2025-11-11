@@ -31,7 +31,6 @@ export default function SongMixer() {
         Toggle tracks, adjust volumes, and create harmonies between objects
       </p>
 
-      {/* Tracks */}
       <div className="space-y-4">
         {objects.map((object) => (
           <div
@@ -43,7 +42,6 @@ export default function SongMixer() {
             }`}
           >
             <div className="flex items-center gap-4">
-              {/* Toggle Button */}
               <button
                 onClick={() => toggleObjectEnabled(object.id)}
                 className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl transition-all ${
@@ -58,21 +56,19 @@ export default function SongMixer() {
                 {object.icon}
               </button>
 
-              {/* Object Info */}
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-bold text-gray-800">
-                    {object.object_name}
+                    {object.name}
                   </h3>
                   <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium">
                     {object.genre}
                   </span>
                   <span className="px-2 py-0.5 bg-pink-100 text-pink-700 rounded text-xs font-medium uppercase">
-                    {object.vocal_range}
+                    {object.vocalRange}
                   </span>
                 </div>
 
-                {/* Volume Slider */}
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-gray-500 w-16">Volume:</span>
                   <input
@@ -91,7 +87,6 @@ export default function SongMixer() {
                   </span>
                 </div>
 
-                {/* Visual Waveform */}
                 {object.enabled && (
                   <div className="flex items-end gap-0.5 h-8 mt-2">
                     {Array.from({ length: 40 }).map((_, i) => (
@@ -113,7 +108,6 @@ export default function SongMixer() {
         ))}
       </div>
 
-      {/* Summary */}
       <div className="pt-4 border-t-2 border-gray-200">
         <div className="flex justify-between items-center text-sm">
           <span className="text-gray-600">

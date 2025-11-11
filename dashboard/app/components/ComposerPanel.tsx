@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useStudioStore } from '../lib/store';
 import { GENRE_OPTIONS, VOCAL_RANGE_OPTIONS } from '../lib/presets';
+import { saveObjects } from '../lib/persistence';
 
 export default function ComposerPanel() {
-  const { selectedObject, updateObject, selectObject } = useStudioStore();
+  const { selectedObject, updateObject, selectObject, objects } = useStudioStore();
   const [isGeneratingLyrics, setIsGeneratingLyrics] = useState(false);
 
   if (!selectedObject) {
@@ -32,8 +33,9 @@ export default function ComposerPanel() {
         }),
       });
       const data = await response.json();
-      if (data.success) {
-        updateObject(selectedObject.id, { lyrics: data.lyrics });
+      if (data.ok && data.data) {
+        updateObject(selectedObject.id, { lyrics: data.data.lyrics });
+        saveObjects(objects);
       }
     } catch (error) {
       console.error('Failed to generate lyrics:', error);
@@ -43,7 +45,12 @@ export default function ComposerPanel() {
   };
 
   const handleSingPreview = () => {
-    alert(`🎤 ${selectedObject.object_name} is singing:\n\n${selectedObject.lyrics || 'No lyrics yet...'}`);
+    alert(`🎤 ${selectedObject.name} is singing:\n\n${selectedObject.lyrics || 'No lyrics yet...'}`);
+  };
+
+  const handleUpdate = (updates: Partial<typeof selectedObject>) => {
+    updateObject(selectedObject.id, updates);
+    saveObjects(objects);
   };
 
   return (
@@ -58,7 +65,6 @@ export default function ComposerPanel() {
         </button>
       </div>
 
-      {/* Object Icon and Name */}
       <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
         <div className="text-5xl">{selectedObject.icon}</div>
         <div className="flex-1">
@@ -67,16 +73,15 @@ export default function ComposerPanel() {
           </label>
           <input
             type="text"
-            value={selectedObject.object_name}
+            value={selectedObject.name}
             onChange={(e) =>
-              updateObject(selectedObject.id, { object_name: e.target.value })
+              handleUpdate({ name: e.target.value })
             }
             className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none"
           />
         </div>
       </div>
 
-      {/* Personality Summary */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Personality Summary
@@ -84,14 +89,13 @@ export default function ComposerPanel() {
         <textarea
           value={selectedObject.personality}
           onChange={(e) =>
-            updateObject(selectedObject.id, { personality: e.target.value })
+            handleUpdate({ personality: e.target.value })
           }
           rows={3}
           className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none"
         />
       </div>
 
-      {/* Genre and Vocal Range */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -100,7 +104,7 @@ export default function ComposerPanel() {
           <select
             value={selectedObject.genre}
             onChange={(e) =>
-              updateObject(selectedObject.id, { genre: e.target.value })
+              handleUpdate({ genre: e.target.value })
             }
             className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none"
           >
@@ -117,10 +121,10 @@ export default function ComposerPanel() {
             Vocal Range
           </label>
           <select
-            value={selectedObject.vocal_range}
+            value={selectedObject.vocalRange}
             onChange={(e) =>
-              updateObject(selectedObject.id, {
-                vocal_range: e.target.value as 'bass' | 'tenor' | 'alto' | 'soprano',
+              handleUpdate({
+                vocalRange: e.target.value as 'bass' | 'tenor' | 'alto' | 'soprano',
               })
             }
             className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none uppercase"
@@ -134,7 +138,6 @@ export default function ComposerPanel() {
         </div>
       </div>
 
-      {/* Mood Sliders */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-800">Mood Spectrum</h3>
 
@@ -152,7 +155,7 @@ export default function ComposerPanel() {
             max="100"
             value={selectedObject.mood.happy * 100}
             onChange={(e) =>
-              updateObject(selectedObject.id, {
+              handleUpdate({
                 mood: {
                   ...selectedObject.mood,
                   happy: parseInt(e.target.value) / 100,
@@ -177,7 +180,7 @@ export default function ComposerPanel() {
             max="100"
             value={selectedObject.mood.calm * 100}
             onChange={(e) =>
-              updateObject(selectedObject.id, {
+              handleUpdate({
                 mood: {
                   ...selectedObject.mood,
                   calm: parseInt(e.target.value) / 100,
@@ -202,7 +205,7 @@ export default function ComposerPanel() {
             max="100"
             value={selectedObject.mood.bright * 100}
             onChange={(e) =>
-              updateObject(selectedObject.id, {
+              handleUpdate({
                 mood: {
                   ...selectedObject.mood,
                   bright: parseInt(e.target.value) / 100,
@@ -214,7 +217,6 @@ export default function ComposerPanel() {
         </div>
       </div>
 
-      {/* Custom Lyrics */}
       <div>
         <div className="flex justify-between items-center mb-2">
           <label className="block text-sm font-medium text-gray-700">
@@ -225,13 +227,13 @@ export default function ComposerPanel() {
             disabled={isGeneratingLyrics}
             className="px-4 py-1 bg-purple-500 text-white rounded-lg text-sm font-medium hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {isGeneratingLyrics ? '⏳ Generating...' : '✨ Generate Lyrics'}
+            {isGeneratingLyrics ? '⏳ Generating' : '✨ Generate Lyrics'}
           </button>
         </div>
         <textarea
           value={selectedObject.lyrics || ''}
           onChange={(e) =>
-            updateObject(selectedObject.id, { lyrics: e.target.value })
+            handleUpdate({ lyrics: e.target.value })
           }
           rows={4}
           placeholder="Enter custom lyrics or generate them..."
@@ -239,7 +241,6 @@ export default function ComposerPanel() {
         />
       </div>
 
-      {/* Action Buttons */}
       <div className="flex gap-4 pt-4">
         <button
           onClick={handleSingPreview}

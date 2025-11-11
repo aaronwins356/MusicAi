@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { SingingObject } from './types';
 
-interface StudioStore {
+export interface StudioStore {
   objects: SingingObject[];
   selectedObject: SingingObject | null;
   harmonyMode: boolean;
@@ -10,22 +10,24 @@ interface StudioStore {
   // Actions
   addObject: (object: SingingObject) => void;
   updateObject: (id: string, updates: Partial<SingingObject>) => void;
+  removeObject: (id: string) => void;
   selectObject: (object: SingingObject | null) => void;
   toggleObjectEnabled: (id: string) => void;
   setObjectVolume: (id: string, volume: number) => void;
   toggleHarmonyMode: () => void;
   toggleCreateModal: () => void;
+  hydrateFromStorage: () => Promise<void>;
 }
 
 // Sample preset objects
 const DEFAULT_OBJECTS: SingingObject[] = [
   {
     id: 'lamp-1',
-    object_name: 'Melancholic Lamp',
+    name: 'Melancholic Lamp',
     type: 'Lamp',
     personality: 'A tired desk lamp who has seen too many late nights and now sings sad jazz ballads about forgotten dreams',
     genre: 'jazz',
-    vocal_range: 'tenor',
+    vocalRange: 'tenor',
     mood: {
       happy: 0.2,
       calm: 0.8,
@@ -36,14 +38,16 @@ const DEFAULT_OBJECTS: SingingObject[] = [
     color: '#FFD700',
     volume: 0.7,
     enabled: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'kettle-1',
-    object_name: 'Jazz Kettle',
+    name: 'Jazz Kettle',
     type: 'Kettle',
     personality: 'An enthusiastic kettle who loves smooth jazz and whistles melodious tunes while boiling water',
     genre: 'jazz',
-    vocal_range: 'soprano',
+    vocalRange: 'soprano',
     mood: {
       happy: 0.8,
       calm: 0.5,
@@ -54,14 +58,16 @@ const DEFAULT_OBJECTS: SingingObject[] = [
     color: '#4A90E2',
     volume: 0.8,
     enabled: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
   {
     id: 'toaster-1',
-    object_name: 'Rock Toaster',
+    name: 'Rock Toaster',
     type: 'Toaster',
     personality: 'A rebellious toaster that burns bread on purpose and screams rock anthems',
     genre: 'rock',
-    vocal_range: 'bass',
+    vocalRange: 'bass',
     mood: {
       happy: 0.6,
       calm: 0.2,
@@ -72,6 +78,8 @@ const DEFAULT_OBJECTS: SingingObject[] = [
     color: '#E74C3C',
     volume: 0.75,
     enabled: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   },
 ];
 
@@ -89,12 +97,18 @@ export const useStudioStore = create<StudioStore>((set) => ({
   updateObject: (id, updates) =>
     set((state) => ({
       objects: state.objects.map((obj) =>
-        obj.id === id ? { ...obj, ...updates } : obj
+        obj.id === id ? { ...obj, ...updates, updatedAt: new Date().toISOString() } : obj
       ),
       selectedObject:
         state.selectedObject?.id === id
-          ? { ...state.selectedObject, ...updates }
+          ? { ...state.selectedObject, ...updates, updatedAt: new Date().toISOString() }
           : state.selectedObject,
+    })),
+
+  removeObject: (id) =>
+    set((state) => ({
+      objects: state.objects.filter((obj) => obj.id !== id),
+      selectedObject: state.selectedObject?.id === id ? null : state.selectedObject,
     })),
 
   selectObject: (object) =>
@@ -105,14 +119,14 @@ export const useStudioStore = create<StudioStore>((set) => ({
   toggleObjectEnabled: (id) =>
     set((state) => ({
       objects: state.objects.map((obj) =>
-        obj.id === id ? { ...obj, enabled: !obj.enabled } : obj
+        obj.id === id ? { ...obj, enabled: !obj.enabled, updatedAt: new Date().toISOString() } : obj
       ),
     })),
 
   setObjectVolume: (id, volume) =>
     set((state) => ({
       objects: state.objects.map((obj) =>
-        obj.id === id ? { ...obj, volume } : obj
+        obj.id === id ? { ...obj, volume, updatedAt: new Date().toISOString() } : obj
       ),
     })),
 
@@ -125,4 +139,22 @@ export const useStudioStore = create<StudioStore>((set) => ({
     set((state) => ({
       isCreateModalOpen: !state.isCreateModalOpen,
     })),
+
+  hydrateFromStorage: async () => {
+    // Implementation will be in persistence.ts
+    if (typeof window === 'undefined') return;
+    
+    const { loadObjects } = await import('./persistence');
+    const userObjects = await loadObjects();
+    
+    set((state) => {
+      // Merge presets with user objects, preferring user objects on ID collision
+      const presetIds = new Set(DEFAULT_OBJECTS.map(obj => obj.id));
+      const uniqueUserObjects = userObjects.filter(obj => !presetIds.has(obj.id));
+      
+      return {
+        objects: [...DEFAULT_OBJECTS, ...uniqueUserObjects],
+      };
+    });
+  },
 }));

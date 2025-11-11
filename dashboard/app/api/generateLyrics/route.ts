@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { SingingObject, Mood } from '../../lib/types';
 
 const SAMPLE_LYRICS = [
   "In shadows deep, I cast my glow...\nA quiet light for those who know...",
@@ -8,10 +9,29 @@ const SAMPLE_LYRICS = [
   "Through the chaos, I remain...\nEndless cycles, joy and pain...",
 ];
 
+interface GenerateLyricsRequest {
+  object?: SingingObject;
+  personality?: string;
+  genre?: string;
+  mood?: Mood;
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { personality, genre, mood } = body;
+    const body: GenerateLyricsRequest = await request.json();
+    const { object, personality, genre, mood } = body;
+    
+    // Extract values from object if provided
+    const finalPersonality = object?.personality || personality;
+    const finalGenre = object?.genre || genre;
+    const finalMood = object?.mood || mood;
+    
+    if (!finalPersonality || !finalGenre) {
+      return NextResponse.json(
+        { ok: false, error: 'Missing required fields: personality and genre' },
+        { status: 400 }
+      );
+    }
 
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -19,20 +39,23 @@ export async function POST(request: Request) {
     // Generate context-aware lyrics (mock)
     const randomLyrics = SAMPLE_LYRICS[Math.floor(Math.random() * SAMPLE_LYRICS.length)];
     
-    const contextualLyrics = `${personality.split(' ')[0]} whispers soft and ${genre}...\n${randomLyrics.split('\n')[1]}`;
+    const contextualLyrics = `${finalPersonality.split(' ')[0]} whispers soft and ${finalGenre}...\n${randomLyrics.split('\n')[1]}`;
 
     return NextResponse.json({
-      success: true,
-      lyrics: contextualLyrics,
-      metadata: {
-        genre,
-        mood,
-        generatedAt: new Date().toISOString(),
+      ok: true,
+      data: {
+        lyrics: contextualLyrics,
+        metadata: {
+          genre: finalGenre,
+          mood: finalMood,
+          generatedAt: new Date().toISOString(),
+        },
       },
     });
-  } catch {
+  } catch (error) {
+    console.error('Error generating lyrics:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to generate lyrics' },
+      { ok: false, error: 'Failed to generate lyrics' },
       { status: 500 }
     );
   }

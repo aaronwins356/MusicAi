@@ -1,18 +1,49 @@
+export type VocalRange = 'bass' | 'tenor' | 'alto' | 'soprano';
+
+export interface Mood {
+  happy: number;   // 0..1
+  calm: number;    // 0..1
+  bright: number;  // 0..1
+}
+
 export interface SingingObject {
   id: string;
-  object_name: string;
-  type: string;
-  personality: string;
-  genre: string;
-  vocal_range: 'bass' | 'tenor' | 'alto' | 'soprano';
-  mood: {
-    happy: number;
-    calm: number;
-    bright: number;
-  };
+  type: string;          // e.g., "Lamp"
+  name: string;          // e.g., "Melancholic Lamp"
+  personality: string;   // 1–2 sentences
+  genre: string;         // e.g., "Lo-fi ambient"
+  vocalRange: VocalRange;
+  mood: Mood;
   lyrics?: string;
-  icon: string;
-  color: string;
-  volume: number;
+  icon: string;          // UI icon name or path
+  color: string;         // hex or tailwind token
+  volume: number;        // 0..1
   enabled: boolean;
+  createdAt: string;     // ISO
+  updatedAt: string;     // ISO
+}
+
+export interface TrackWaveformPoint { 
+  t: number; 
+  v: number; 
+} // time, value -1..1
+
+export interface SongTrack {
+  objectId: string;
+  displayName: string;
+  genre: string;
+  vocalRange: VocalRange;
+  enabled: boolean;
+  volume: number;
+  waveform: TrackWaveformPoint[];  // for visualization
+}
+
+export interface SongResult {
+  id: string;
+  title: string;
+  bpm: number;
+  key: string;
+  harmonyMode: boolean;
+  mixedAudioUrl: string; // mock: static mp3 or data URL
+  tracks: SongTrack[];
 }

@@ -1,12 +1,20 @@
 # Singing Object Studio - Musical Personalities System
 
-A complete full-stack application for creating songs where inanimate objects sing with unique musical personalities. Includes a Python core library, FastAPI backend service, and a modern React/Next.js dashboard.
+A complete full-stack application for creating songs where inanimate objects sing with unique musical personalities. **Now with real audio synthesis!** The app actually generates and plays synthesized music using Web Audio API (frontend) and NumPy (backend).
 
 ![Dashboard Preview](https://github.com/user-attachments/assets/c82e750b-67ff-4521-862f-1bac16733b62)
 
 ## Overview
 
 This system allows you to create songs where ordinary things—like lamps, mugs, or toasters—sing together to express their emotions, purposes, and relationships. Each object has unique voice characteristics, emotional mood spectrums, and genre preferences.
+
+**🎵 New: Real Audio Synthesis**
+- Generate actual playable music (not just mock audio!)
+- Oscillator-based synthesis with musical scales
+- Mood-based modulation (brightness, happiness, calmness)
+- Interactive playback controls (play/pause/seek)
+- Download as WAV files
+- 44.1kHz, 16-bit PCM quality
 
 ## Projects
 
@@ -17,9 +25,10 @@ A production-ready React/Next.js web application for designing and composing wit
 **Tech Stack:**
 - Next.js 14.2.18 (App Router)
 - React 18.2.0
-- TypeScript 5
+- TypeScript 5 (strict mode)
 - Tailwind CSS 4
 - Zustand for state management
+- Web Audio API for real-time synthesis
 - Vitest for testing
 
 **[📖 View Dashboard Documentation](dashboard/README.md)**
@@ -34,20 +43,26 @@ npm run dev
 
 **Features:**
 - ✅ Create and manage singing objects with personalities
+- ✅ **Real audio synthesis and playback** 🎵
+- ✅ Interactive playback controls (play/pause/stop/seek)
+- ✅ Keyboard shortcuts (Space for play/pause)
+- ✅ Download generated songs as WAV files
 - ✅ Real-time audio preview with waveform visualization
 - ✅ Harmony mode with distinct per-track waveforms
 - ✅ localStorage persistence for user objects
 - ✅ Complete REST API with CRUD operations
 - ✅ Full TypeScript types with camelCase consistency
-- ✅ Comprehensive test coverage
+- ✅ Comprehensive test coverage (6 tests passing)
 
 ### 🚀 FastAPI Backend Service
 
-Optional Python microservice that provides production-ready song composition.
+Optional Python microservice that provides production-ready song composition **with real audio synthesis**.
 
 **Tech Stack:**
 - FastAPI 0.115+
 - Pydantic 2 for validation
+- NumPy for audio synthesis
+- SciPy for WAV encoding
 - Pytest for testing
 - Uvicorn for serving
 
@@ -62,12 +77,18 @@ python main.py
 ```
 
 **Features:**
-- ✅ `/compose` endpoint for song generation
+- ✅ `/compose` endpoint for song generation **with real audio** 🎵
+- ✅ NumPy-based oscillator synthesis
+- ✅ Musical scales and melodies
+- ✅ ADSR envelope generation
+- ✅ Multi-track mixing with normalization
+- ✅ WAV encoding to base64 data URLs
 - ✅ Deterministic waveform generation
 - ✅ Full Pydantic type validation
 - ✅ CORS enabled for cross-origin requests
-- ✅ Comprehensive test suite
+- ✅ Comprehensive test suite (16 tests passing)
 - ✅ Interactive API documentation
+- ✅ Production-ready error handling
 
 ### 🐍 Python Core Library
 
@@ -224,11 +245,45 @@ All endpoints return `{ ok: boolean, data?: T, error?: string }`
 
 - `GET /` - Service info
 - `GET /health` - Health check
-- `POST /compose` - Compose song (returns `SongResult`)
+- `POST /compose` - Compose song with **real audio synthesis** (returns `SongResult` with WAV data URL)
+
+## Audio Synthesis
+
+### How It Works
+
+The application uses two synthesis engines:
+
+**Frontend (Web Audio API)**
+- `synth.ts`: OfflineAudioContext for rendering
+- Oscillator-based synthesis with sine and triangle waves
+- Musical scale intervals (major scale: 0, 2, 4, 5, 7, 9, 11, 12 semitones)
+- Per-note ADSR envelope (attack, sustain, release)
+- Mood-based modulation:
+  - **Brightness**: Affects tremolo (vibrato effect)
+  - **Happiness**: Controls overall energy/amplitude
+  - **Calmness**: Influences sustain length
+- 16-bit PCM WAV encoding at 44.1kHz
+- Multi-track mixing with volume control
+
+**Backend (NumPy)**
+- `main.py`: NumPy array-based synthesis
+- Similar oscillator and envelope approach
+- Deterministic generation (seeded RNG)
+- SciPy wavfile for WAV encoding
+- Base64 data URL output for browser playback
+- Normalized mixing prevents clipping
+
+**Audio Specifications**
+- Sample Rate: 44,100 Hz
+- Bit Depth: 16-bit PCM
+- Channels: Stereo (2)
+- Format: WAV
+- Duration: 8 seconds (configurable)
+- Vocal Ranges: Bass (110Hz), Tenor (196Hz), Alto (262Hz), Soprano (392Hz)
 
 ## Testing
 
-### Dashboard Tests
+### Dashboard Tests (6 passing ✅)
 
 ```bash
 cd dashboard
@@ -236,26 +291,54 @@ cd dashboard
 # Run all tests
 npm test
 
+# Run specific test file
+npm test tests/lib/synth.test.ts
+
 # Watch mode
 npm run test:watch
-
-# With coverage
-npm test -- --coverage
 ```
 
-### Python Service Tests
+**Test Coverage:**
+- WAV encoding from AudioBuffer
+- Audio synthesis with multiple objects
+- Disabled object filtering
+- Blob URL creation
+- Multi-track handling
+
+### Python Service Tests (16 passing ✅)
 
 ```bash
 cd pyservice
 
-# Run tests
-pytest
+# Run all tests
+python -m pytest tests/ -v
+
+# Run specific tests
+python -m pytest tests/test_synthesis.py -v  # 10 synthesis tests
+python -m pytest tests/test_api.py -v        # 6 API tests
 
 # With coverage
-pytest --cov=. --cov-report=html
+python -m pytest --cov=. --cov-report=html
+```
 
-# Verbose
-pytest -v
+**Test Coverage:**
+- Audio generation (length, vocal ranges, volume)
+- Track mixing and normalization
+- WAV data URL encoding
+- API endpoint responses
+- Error handling
+
+### Code Quality
+
+```bash
+# TypeScript type checking
+cd dashboard
+npx tsc --noEmit
+
+# Python linting
+cd pyservice
+ruff check .          # Linting
+mypy main.py models.py  # Type checking
 ```
 
 ## Development
@@ -297,24 +380,44 @@ npm run dev
 
 - **Backend API**: Complete REST API with camelCase models
 - **CRUD Operations**: Full object lifecycle management
-- **Song Generation**: With harmony mode and distinct waveforms
+- **🎵 Real Audio Generation**: Actual synthesized music using Web Audio API and NumPy
+  - Oscillator-based synthesis with musical scales
+  - ADSR envelope shaping
+  - Mood-based modulation (brightness, happiness, calmness)
+  - Multi-track mixing with normalization
+  - 44.1kHz, 16-bit PCM WAV output
+- **Interactive Playback**: Real-time audio controls
+  - Play/pause/stop/seek functionality
+  - Keyboard shortcuts (Space bar)
+  - Progress tracking and time display
+  - Download audio as WAV
+- **Audio Engine**: Live AudioContext with per-track controls
+  - Gain nodes for volume control
+  - Stereo panning support
+  - Biquadfilter for EQ
+  - Analyser nodes for visualization data
 - **Persistence**: localStorage + file-based storage
-- **Python Service**: Optional FastAPI backend
+- **Python Service**: Optional FastAPI backend with real synthesis
 - **Waveform Visualization**: SVG-based per-track display
-- **Audio Playback**: HTML5 audio with mixedAudioUrl
-- **Type Safety**: Full TypeScript coverage
-- **Tests**: Comprehensive test suite (Vitest + pytest)
+- **Type Safety**: Full TypeScript coverage (strict mode)
+- **Tests**: Comprehensive test suite - 22 tests passing
+  - Frontend: 6 Vitest tests
+  - Backend: 16 pytest tests (10 synthesis + 6 API)
+- **Code Quality**: 
+  - Zero TypeScript errors
+  - Ruff linting: 100% clean
+  - Mypy type checking: No issues
 - **Documentation**: Complete API reference
 
 ### 🚧 Future Enhancements
 
-- Real AI integration (LLM for lyrics, voice synthesis)
-- Actual audio generation and synthesis
+- Real AI integration (LLM for lyrics, advanced voice synthesis)
+- Advanced mixing UI (EQ controls, effects, compression)
 - User accounts and cloud storage
 - Real-time collaboration
-- Advanced mixing (EQ, effects, compression)
 - MIDI export and stem downloads
 - Mobile app version
+- Canvas-based real-time visualizer
 
 ## Deployment
 

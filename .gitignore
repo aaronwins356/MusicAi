@@ -44,3 +44,9 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Node.js / Next.js
+dashboard/node_modules/
+dashboard/.next/
+dashboard/out/
+dashboard/.cache/

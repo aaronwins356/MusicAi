@@ -1,19 +1,40 @@
 # Choir of Objects - Musical Personalities System
 
-A Python implementation for creating songs where inanimate objects sing with unique musical personalities.
+A Python implementation and React-based interactive dashboard for creating songs where inanimate objects sing with unique musical personalities.
 
 ## Overview
 
 This system allows you to create songs where ordinary things—like lamps, mugs, or toasters—sing together to express their emotions, purposes, and relationships.
 
+## Projects
+
+### 🐍 Python Core Library
+The original Python implementation for generating object-based songs. See below for Python API usage.
+
+### 🎵 Singing Object Studio Dashboard
+A modern React-based interactive web application for designing and composing with singing object personalities.
+
+**[📖 View Dashboard Documentation](dashboard/README.md)**
+
+![Dashboard Preview](https://github.com/user-attachments/assets/c82e750b-67ff-4521-862f-1bac16733b62)
+
+**Quick Start:**
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Visit http://localhost:3000 to start creating!
+
 ## Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/aaronwins356/NFL-IQ.git
-cd NFL-IQ
+git clone https://github.com/aaronwins356/MusicAi.git
+cd MusicAi
 
-# No dependencies required - uses Python standard library
+# No dependencies required for Python - uses Python standard library
 ```
 
 ## Quick Links

@@ -16,6 +16,11 @@ cd NFL-IQ
 # No dependencies required - uses Python standard library
 ```
 
+## Quick Links
+
+- [Detailed Usage Guide](USAGE.md) - Comprehensive guide with examples
+- [Test Suite](test_choir_of_objects.py) - Run tests with `python3 test_choir_of_objects.py`
+
 ## Usage
 
 ### Command Line Interface

@@ -104,7 +104,10 @@ describe('Audio Synthesis', () => {
         numberOfChannels: 1,
         length: 44100,
         sampleRate: 44100,
+        duration: 1,
         getChannelData: () => new Float32Array(44100),
+        copyFromChannel: () => {},
+        copyToChannel: () => {},
       } as AudioBuffer;
 
       const wavBuffer = audioBufferToWav(mockBuffer);

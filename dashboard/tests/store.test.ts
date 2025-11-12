@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useStudioStore } from '../../app/lib/store';
-import { SingingObject } from '../../app/lib/types';
+import { useStudioStore } from '@/lib/store';
+import type { SingingObject } from '@/lib/types';
 
 describe('Studio Store', () => {
   beforeEach(() => {
     // Reset store state before each test
     const store = useStudioStore.getState();
-    store.objects.forEach(obj => {
+    store.objects.forEach((obj: SingingObject) => {
       if (obj.id.startsWith('custom-')) {
         store.removeObject(obj.id);
       }
@@ -16,9 +16,9 @@ describe('Studio Store', () => {
   it('should have initial preset objects', () => {
     const { objects } = useStudioStore.getState();
     expect(objects.length).toBeGreaterThanOrEqual(3);
-    expect(objects.find(obj => obj.id === 'lamp-1')).toBeDefined();
-    expect(objects.find(obj => obj.id === 'kettle-1')).toBeDefined();
-    expect(objects.find(obj => obj.id === 'toaster-1')).toBeDefined();
+    expect(objects.find((obj: SingingObject) => obj.id === 'lamp-1')).toBeDefined();
+    expect(objects.find((obj: SingingObject) => obj.id === 'kettle-1')).toBeDefined();
+    expect(objects.find((obj: SingingObject) => obj.id === 'toaster-1')).toBeDefined();
   });
 
   it('should add a new object', () => {
@@ -45,7 +45,7 @@ describe('Studio Store', () => {
     
     const { objects } = useStudioStore.getState();
     expect(objects.length).toBe(initialCount + 1);
-    expect(objects.find(obj => obj.id === 'custom-test')).toBeDefined();
+    expect(objects.find((obj: SingingObject) => obj.id === 'custom-test')).toBeDefined();
   });
 
   it('should update an object', () => {
@@ -56,7 +56,7 @@ describe('Studio Store', () => {
     store.updateObject(objectToUpdate.id, { name: newName });
     
     const { objects } = useStudioStore.getState();
-    const updated = objects.find(obj => obj.id === objectToUpdate.id);
+    const updated = objects.find((obj: SingingObject) => obj.id === objectToUpdate.id);
     expect(updated?.name).toBe(newName);
     expect(updated?.updatedAt).not.toBe(objectToUpdate.updatedAt);
   });
@@ -81,13 +81,13 @@ describe('Studio Store', () => {
     };
     
     store.addObject(newObject);
-    const countAfterAdd = store.objects.length;
+    const countAfterAdd = useStudioStore.getState().objects.length;
     
     store.removeObject('custom-remove-test');
     
     const { objects } = useStudioStore.getState();
     expect(objects.length).toBe(countAfterAdd - 1);
-    expect(objects.find(obj => obj.id === 'custom-remove-test')).toBeUndefined();
+    expect(objects.find((obj: SingingObject) => obj.id === 'custom-remove-test')).toBeUndefined();
   });
 
   it('should toggle object enabled state', () => {
@@ -98,7 +98,7 @@ describe('Studio Store', () => {
     store.toggleObjectEnabled(objectToToggle.id);
     
     const { objects } = useStudioStore.getState();
-    const toggled = objects.find(obj => obj.id === objectToToggle.id);
+    const toggled = objects.find((obj: SingingObject) => obj.id === objectToToggle.id);
     expect(toggled?.enabled).toBe(!initialState);
   });
 
@@ -110,7 +110,7 @@ describe('Studio Store', () => {
     store.setObjectVolume(objectToUpdate.id, newVolume);
     
     const { objects } = useStudioStore.getState();
-    const updated = objects.find(obj => obj.id === objectToUpdate.id);
+    const updated = objects.find((obj: SingingObject) => obj.id === objectToUpdate.id);
     expect(updated?.volume).toBe(newVolume);
   });
 

@@ -42,12 +42,24 @@ Singing Object Studio is a modern React-based web application that lets users cr
 - **Harmony Mode**: Toggle between solo and harmony composition modes with distinct waveforms
 
 ### 🎧 Preview & Export
-- **Song Generation**: Combine all active objects into a complete composition
-- **Audio Preview Player**: HTML5 audio player with mixedAudioUrl support
+- **Voice Mode Toggle**: Switch between instrument mode and offline singing voice synthesis
+- **Singing Mode Features**:
+  - Natural language prompt input for voice generation
+  - Offline synthesis using Web Audio API (no network required)
+  - Real-time phoneme-to-singing conversion
+  - Formant-based vocal synthesis with 4 presets:
+    - `alto-soft`: Warm mid-range voice
+    - `tenor-bright`: Clear upper-range voice
+    - `soprano-airy`: Light high-range voice  
+    - `baritone-warm`: Rich low-range voice
+  - Automatic BPM, scale, and mood detection from prompts
+  - Live lyric highlighting during playback
+- **Instrument Mode**: Combine all active objects into a multi-track composition
+- **Audio Preview Player**: HTML5 audio with seek and keyboard controls (Space = play/pause)
 - **Waveform Visualization**: Per-track SVG waveform display
 - **Export Options**:
   - Download JSON (object definitions + lyrics)
-  - Download MP3 (placeholder for backend integration)
+  - Download WAV audio (generated client-side)
 - **Real-time Stats**: Track active objects, genres, and composition mode
 
 ## Tech Stack
@@ -101,6 +113,50 @@ NEXT_PUBLIC_PY_BACKEND_URL=http://localhost:8000
 
 When `PY_BACKEND_URL` is set, the `/api/generateSong` endpoint will delegate to the Python FastAPI service. Otherwise, it uses the built-in mock generator.
 
+## Offline Singing Mode
+
+The application features a complete **offline singing voice synthesis pipeline** that works entirely in the browser without any network calls. This mode generates realistic human-like singing voices from text prompts using Web Audio API.
+
+### How It Works
+
+1. **Natural Language Input**: Enter a prompt like "soft soprano singing about the moon at 120 bpm"
+2. **Prompt Parsing**: Extracts BPM, duration, scale (major/minor), voice preset, and mood
+3. **Phoneme Generation**: Converts lyrics to phoneme sequence (vowels + consonants)
+4. **Melody Generation**: Creates deterministic 8th-note melodies using scale intervals
+5. **Voice Synthesis**: Renders singing using formant filters and ADSR envelopes
+6. **Audio Output**: Encodes to 16-bit WAV format and creates playable Blob URL
+
+### Voice Presets
+
+- **alto-soft**: 262 Hz base, gentle with 5% breath, subtle vibrato (5.0 Hz, ±15 cents)
+- **tenor-bright**: 196 Hz base, clear with 2% breath, moderate vibrato (5.5 Hz, ±20 cents)
+- **soprano-airy**: 392 Hz base, light with 8% breath, strong vibrato (6.0 Hz, ±25 cents)
+- **baritone-warm**: 147 Hz base, rich with 3% breath, soft vibrato (4.5 Hz, ±12 cents)
+
+### Technical Details
+
+- **Source**: Sawtooth oscillator with vibrato LFO for glottal pulses
+- **Formants**: 3 bandpass filters per vowel (A, E, I, O, U) with Q=10-14
+- **Consonants**: Short HP-filtered noise bursts (max 50ms)
+- **Envelope**: Attack 15ms, Decay 60ms, Sustain 0.85, Release 80ms
+- **Output**: Stereo 44.1kHz WAV, 16-bit PCM
+
+### Example Prompts
+
+- `"soft soprano singing a dreamy melody about the moon"`
+- `"energetic tenor with bright tone at 140 bpm"`
+- `"gentle alto singing about love in minor key for 10 seconds"`
+- `"deep baritone warm voice singing slowly"`
+
+### Offline Operation
+
+All synthesis happens client-side:
+- ✅ No API calls during generation
+- ✅ No external dependencies
+- ✅ Works in airplane mode
+- ✅ Privacy-friendly (no data sent to servers)
+- ✅ Real-time audio engine with analyser-driven visualization
+
 ## Project Structure
 
 ```
@@ -128,7 +184,14 @@ dashboard/
 │   │   ├── store.ts            # Zustand state management
 │   │   ├── persistence.ts      # localStorage utilities
 │   │   ├── waveform.ts         # Waveform generation
-│   │   └── config.ts           # App configuration
+│   │   ├── config.ts           # App configuration
+│   │   ├── prompt.ts           # Natural language prompt parsing
+│   │   ├── lyrics.ts           # Text-to-phoneme conversion
+│   │   ├── melody.ts           # Deterministic melody generation
+│   │   ├── voice.ts            # Formant-based vocal synthesis
+│   │   ├── synth.ts            # Audio rendering and WAV encoding
+│   │   ├── player.ts           # Runtime audio playback engine
+│   │   └── audio-engine.ts     # Live audio graph management
 │   ├── globals.css             # Global styles
 │   ├── layout.tsx              # Root layout
 │   └── page.tsx                # Main page
@@ -136,6 +199,10 @@ dashboard/
 │   ├── api/
 │   │   ├── health.test.ts
 │   │   └── generateSong.test.ts
+│   ├── lib/
+│   │   ├── lyrics.test.ts
+│   │   ├── melody.test.ts
+│   │   └── synth.test.ts
 │   └── store.test.ts
 ├── public/                      # Static assets
 ├── .data/                       # Server-side storage (gitignored)
@@ -171,6 +238,32 @@ interface SingingObject {
   enabled: boolean;
   createdAt: string;     // ISO timestamp
   updatedAt: string;     // ISO timestamp
+}
+```
+
+### SingingInput (Offline Singing Mode)
+
+```typescript
+interface SingingInput {
+  lyrics: string;
+  bpm: number;            // 40-200
+  seconds: number;        // 1-60
+  scale: 'major' | 'minor';
+  preset: 'alto-soft' | 'tenor-bright' | 'soprano-airy' | 'baritone-warm';
+  pan: number;            // -1 (left) to 1 (right)
+}
+
+interface Phoneme {
+  grapheme: string;       // Original character
+  phoneme: string;        // 'A'|'E'|'I'|'O'|'U'|'C' (consonant)
+  duration: number;       // milliseconds
+}
+
+interface Note {
+  frequency: number;      // Hz
+  startTime: number;      // seconds
+  duration: number;       // seconds
+  phoneme?: Phoneme;
 }
 ```
 
@@ -455,8 +548,12 @@ npm test -- --coverage
 ### Test Structure
 
 - **API Tests**: Integration tests for API endpoints (require dev server running)
-- **Store Tests**: Unit tests for Zustand store actions
-- **Component Tests**: (Add as needed)
+- **Store Tests**: Unit tests for Zustand store actions (9 tests)
+- **Lib Tests**: Unit tests for singing voice synthesis modules
+  - `lyrics.test.ts`: Phoneme generation and timing (13 tests)
+  - `melody.test.ts`: Deterministic melody generation (16 tests)
+  - `synth.test.ts`: Audio buffer and WAV encoding (6 tests)
+- **Total**: 44 tests passing
 
 ## Harmony Mode
 
@@ -522,13 +619,17 @@ Set `PY_BACKEND_URL` in your deployment environment if using the Python backend.
 
 ## Future Enhancements
 
-- Real AI integration for lyrics and voice generation
-- Actual audio synthesis and playback
+- ~~Real AI integration for lyrics and voice generation~~ ✅ Offline singing implemented
+- ~~Actual audio synthesis and playback~~ ✅ Web Audio API synthesis with real-time playback
 - User accounts and cloud storage
 - Collaboration features
-- Advanced mixing tools (EQ, effects)
+- Advanced mixing tools (per-track EQ, reverb, compression)
+- Humanization controls (vibrato depth/rate, breath, brightness)
+- Multi-track singing with harmony
 - MIDI export
 - Stem downloads
+- Portamento and pitch slides between notes
+- Optional Python backend for enhanced synthesis
 
 ## Contributing
 

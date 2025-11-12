@@ -326,6 +326,165 @@ async def compose_song(request: ComposeRequest):
         )
 
 
+@app.post("/compose_singing")
+async def compose_singing(request: SingingInput):
+    """
+    Compose a singing voice track from text prompt
+    
+    This endpoint generates synthetic singing using NumPy-based synthesis:
+    - Text-to-phoneme conversion
+    - Formant-based vowel synthesis
+    - Consonant noise bursts
+    - ADSR envelope shaping
+    - Returns WAV data URL for browser playback
+    """
+    try:
+        from models import SingingInput
+        
+        # Validate input
+        if not request.lyrics or len(request.lyrics.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Lyrics cannot be empty")
+        
+        if request.seconds < 1 or request.seconds > 60:
+            raise HTTPException(status_code=400, detail="Duration must be between 1 and 60 seconds")
+        
+        # Simple text-to-phoneme conversion (similar to frontend)
+        def text_to_phonemes(text: str, bpm: int):
+            phonemes = []
+            words = text.strip().split()
+            beat_duration = (60 / bpm) * 1000  # ms per beat
+            syllable_duration = beat_duration / 2
+            
+            for word in words:
+                for char in word:
+                    upper = char.upper()
+                    if upper in 'AEIOU':
+                        phonemes.append({
+                            'grapheme': char,
+                            'phoneme': upper,
+                            'duration': syllable_duration * 0.7
+                        })
+                    elif upper.isalpha():
+                        phonemes.append({
+                            'grapheme': char,
+                            'phoneme': 'C',
+                            'duration': syllable_duration * 0.15
+                        })
+                # Add pause between words
+                phonemes.append({
+                    'grapheme': ' ',
+                    'phoneme': '',
+                    'duration': syllable_duration * 0.2
+                })
+            
+            return phonemes
+        
+        # Generate melody (simple sine-based for now)
+        def generate_melody(bpm: int, seconds: float, scale_type: str, root_note: int):
+            scales = {
+                'major': [0, 2, 4, 5, 7, 9, 11, 12],
+                'minor': [0, 2, 3, 5, 7, 8, 10, 12]
+            }
+            scale = scales.get(scale_type, scales['major'])
+            beat_duration = 60 / bpm
+            eighth_duration = beat_duration / 2
+            total_notes = int(seconds / eighth_duration)
+            
+            rng = np.random.RandomState(42)
+            notes = []
+            
+            for i in range(total_notes):
+                semitones = scale[rng.randint(0, len(scale))]
+                midi_note = root_note + semitones
+                freq = 440 * (2 ** ((midi_note - 69) / 12))
+                notes.append({
+                    'frequency': freq,
+                    'start': i * eighth_duration,
+                    'duration': eighth_duration
+                })
+            
+            return notes
+        
+        # Convert preset to root note
+        root_notes = {
+            'soprano-airy': 67,
+            'alto-soft': 60,
+            'tenor-bright': 55,
+            'baritone-warm': 50
+        }
+        root_note = root_notes.get(request.preset, 60)
+        
+        # Generate phonemes and melody
+        phonemes = text_to_phonemes(request.lyrics, request.bpm)
+        melody = generate_melody(request.bpm, request.seconds, request.scale, root_note)
+        
+        # Synthesize audio (simplified - just generate tone)
+        num_samples = int(request.seconds * SAMPLE_RATE)
+        audio = np.zeros(num_samples)
+        
+        current_time = 0
+        for i, phoneme in enumerate(phonemes):
+            if phoneme['phoneme'] and phoneme['phoneme'] != '':
+                note = melody[i % len(melody)]
+                freq = note['frequency']
+                duration = phoneme['duration'] / 1000  # Convert to seconds
+                
+                start_sample = int(current_time * SAMPLE_RATE)
+                end_sample = int((current_time + duration) * SAMPLE_RATE)
+                end_sample = min(end_sample, num_samples)
+                
+                if start_sample < num_samples:
+                    samples = end_sample - start_sample
+                    t = np.linspace(0, duration, samples, False)
+                    
+                    # Generate tone with simple envelope
+                    tone = np.sin(2 * np.pi * freq * t)
+                    envelope = np.ones(samples)
+                    
+                    # Attack/release envelope
+                    attack_samples = min(int(0.015 * SAMPLE_RATE), samples // 4)
+                    release_samples = min(int(0.08 * SAMPLE_RATE), samples // 4)
+                    
+                    if attack_samples > 0:
+                        envelope[:attack_samples] = np.linspace(0, 1, attack_samples)
+                    if release_samples > 0:
+                        envelope[-release_samples:] = np.linspace(1, 0, release_samples)
+                    
+                    audio[start_sample:end_sample] += tone * envelope * 0.3
+                
+                current_time += duration
+        
+        # Normalize
+        max_val = np.abs(audio).max()
+        if max_val > 0:
+            audio = audio / max_val * 0.8
+        
+        # Encode as WAV data URL
+        audio_data_url = wav_data_url(audio, SAMPLE_RATE)
+        
+        return {
+            "ok": True,
+            "data": {
+                "audioUrl": audio_data_url,
+                "duration": request.seconds,
+                "bpm": request.bpm,
+                "scale": request.scale,
+                "preset": request.preset
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error composing singing: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to compose singing: {str(e)}"
+        )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -3,7 +3,7 @@
  * Generates real audio from track parameters using OfflineAudioContext
  */
 
-import { SingingObject } from './types';
+import { SingingObject, SingingInput } from './types';
 
 /**
  * Sample rate for audio generation
@@ -204,4 +204,120 @@ export async function synthesizeSong(
  */
 export function createAudioUrl(blob: Blob): string {
   return URL.createObjectURL(blob);
+}
+
+/**
+ * Render a singing voice track to blob URL
+ * Orchestrates the full synthesis pipeline for singing mode
+ */
+export async function renderSingingTrack(
+  lyrics: string,
+  bpm: number,
+  seconds: number,
+  scale: 'major' | 'minor',
+  preset: 'alto-soft' | 'tenor-bright' | 'soprano-airy' | 'baritone-warm',
+  pan: number = 0
+): Promise<string> {
+  // Import modules dynamically to avoid circular dependencies
+  const { textToPhonemes } = await import('./lyrics');
+  const { generateMelody } = await import('./melody');
+  const { synthesizeVoiceTrack } = await import('./voice');
+  
+  // Generate phonemes from lyrics
+  const phonemes = textToPhonemes(lyrics, bpm);
+  
+  // Generate melody
+  const rootNote = preset === 'soprano-airy' ? 67 : 
+                   preset === 'alto-soft' ? 60 :
+                   preset === 'tenor-bright' ? 55 :
+                   50; // baritone
+  const melody = generateMelody(bpm, seconds, scale, rootNote, Date.now());
+  
+  // Create offline context for rendering
+  const context = new OfflineAudioContext(
+    2, // stereo
+    seconds * SAMPLE_RATE,
+    SAMPLE_RATE
+  );
+  
+  // Synthesize voice track
+  const voiceNode = synthesizeVoiceTrack(context, phonemes, melody, preset, pan);
+  voiceNode.connect(context.destination);
+  
+  // Render audio
+  const renderedBuffer = await context.startRendering();
+  
+  // Convert to WAV and create blob URL
+  const wavBuffer = audioBufferToWav(renderedBuffer);
+  const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+  
+  return createAudioUrl(blob);
+}
+
+/**
+ * Render multiple singing inputs and mix them together
+ */
+export async function renderSongToBlobURL(
+  inputs: Array<{
+    lyrics: string;
+    bpm: number;
+    seconds: number;
+    scale: 'major' | 'minor';
+    preset: 'alto-soft' | 'tenor-bright' | 'soprano-airy' | 'baritone-warm';
+    pan: number;
+  }>
+): Promise<string> {
+  if (inputs.length === 0) {
+    throw new Error('No inputs provided');
+  }
+  
+  // Use the longest duration
+  const maxDuration = Math.max(...inputs.map(i => i.seconds));
+  
+  // Import modules
+  const { textToPhonemes } = await import('./lyrics');
+  const { generateMelody } = await import('./melody');
+  const { synthesizeVoiceTrack } = await import('./voice');
+  
+  // Create offline context
+  const context = new OfflineAudioContext(
+    2,
+    maxDuration * SAMPLE_RATE,
+    SAMPLE_RATE
+  );
+  
+  // Render each input as a separate track
+  for (const input of inputs) {
+    const phonemes = textToPhonemes(input.lyrics, input.bpm);
+    
+    const rootNote = input.preset === 'soprano-airy' ? 67 : 
+                     input.preset === 'alto-soft' ? 60 :
+                     input.preset === 'tenor-bright' ? 55 :
+                     50;
+    
+    const melody = generateMelody(
+      input.bpm,
+      input.seconds,
+      input.scale,
+      rootNote,
+      Date.now() + Math.random() * 1000 // Different seed for each track
+    );
+    
+    const voiceNode = synthesizeVoiceTrack(
+      context,
+      phonemes,
+      melody,
+      input.preset,
+      input.pan
+    );
+    
+    voiceNode.connect(context.destination);
+  }
+  
+  // Render and encode
+  const renderedBuffer = await context.startRendering();
+  const wavBuffer = audioBufferToWav(renderedBuffer);
+  const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+  
+  return createAudioUrl(blob);
 }

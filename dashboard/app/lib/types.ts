@@ -1,9 +1,35 @@
 export type VocalRange = 'bass' | 'tenor' | 'alto' | 'soprano';
+export type VoiceMode = 'instrument' | 'singing';
+export type VoicePreset = 'alto-soft' | 'tenor-bright' | 'soprano-airy' | 'baritone-warm';
+export type ScaleType = 'major' | 'minor';
 
 export interface Mood {
   happy: number;   // 0..1
   calm: number;    // 0..1
   bright: number;  // 0..1
+}
+
+// New types for singing voice mode
+export interface SingingInput {
+  lyrics: string;
+  bpm: number;
+  seconds: number;
+  scale: ScaleType;
+  preset: VoicePreset;
+  pan: number;
+}
+
+export interface Phoneme {
+  grapheme: string;
+  phoneme: string;
+  duration: number; // milliseconds
+}
+
+export interface Note {
+  frequency: number;
+  startTime: number; // seconds
+  duration: number;  // seconds
+  phoneme?: Phoneme;
 }
 
 export interface SingingObject {

@@ -2,9 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useStudioStore } from '../lib/store';
-import { SongResult } from '../lib/types';
-import { synthesizeSong, createAudioUrl } from '../lib/synth';
+import { SongResult, VoiceMode } from '../lib/types';
+import { synthesizeSong, createAudioUrl, renderSingingTrack } from '../lib/synth';
 import { AudioEngine } from '../lib/audio-engine';
+import { parsePrompt } from '../lib/prompt';
+import { getActiveWordIndex, getLyricLines } from '../lib/lyrics';
 
 export default function PreviewPlayer() {
   const { objects, harmonyMode } = useStudioStore();
@@ -15,6 +17,12 @@ export default function PreviewPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  
+  // Singing voice mode state
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>('instrument');
+  const [prompt, setPrompt] = useState('');
+  const [lyrics, setLyrics] = useState('');
+  const [activeWordIndex, setActiveWordIndex] = useState(-1);
   
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
@@ -37,7 +45,15 @@ export default function PreviewPlayer() {
     // Update time display during playback
     const updateTime = () => {
       if (audioEngineRef.current && isPlaying) {
-        setCurrentTime(audioEngineRef.current.getCurrentTime());
+        const time = audioEngineRef.current.getCurrentTime();
+        setCurrentTime(time);
+        
+        // Update active word for lyric highlighting
+        if (voiceMode === 'singing' && lyrics && duration > 0) {
+          const wordIndex = getActiveWordIndex(lyrics, time, duration);
+          setActiveWordIndex(wordIndex);
+        }
+        
         animationFrameRef.current = requestAnimationFrame(updateTime);
       }
     };
@@ -51,7 +67,7 @@ export default function PreviewPlayer() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, voiceMode, lyrics, duration]);
 
   const handleGenerateSong = async () => {
     setIsGenerating(true);
@@ -59,59 +75,112 @@ export default function PreviewPlayer() {
     setGenerationProgress('Initializing...');
     
     try {
-      const enabledObjects = objects.filter((obj) => obj.enabled);
+      let audioUrl: string;
       
-      if (enabledObjects.length === 0) {
-        throw new Error('At least one object must be enabled');
-      }
-
-      // Step 1: Synthesize audio
-      setGenerationProgress('Synthesizing audio tracks...');
-      const audioBlob = await synthesizeSong(enabledObjects, 8);
-      const audioUrl = createAudioUrl(audioBlob);
-      
-      // Step 2: Load audio buffer
-      setGenerationProgress('Loading audio buffer...');
-      await audioEngineRef.current!.initialize();
-      const buffer = await audioEngineRef.current!.loadAudio(audioUrl);
-      audioBufferRef.current = buffer;
-      setDuration(buffer.duration);
-      
-      // Step 3: Setup tracks
-      setGenerationProgress('Setting up mixer tracks...');
-      audioEngineRef.current!.setupTracks(buffer, enabledObjects);
-      
-      // Step 4: Generate metadata
-      setGenerationProgress('Generating song metadata...');
-      const response = await fetch('/api/generateSong', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          objects: enabledObjects,
-          harmonyMode,
-        }),
-      });
-      
-      const data = await response.json();
-      if (data.ok && data.data) {
-        // Replace the mock audio URL with our real one
-        const songResult = {
-          ...data.data,
-          mixedAudioUrl: audioUrl,
-        };
-        setSongData(songResult);
-        
-        // Save to localStorage
-        try {
-          localStorage.setItem('lastGeneratedSong', JSON.stringify(songResult));
-        } catch (e) {
-          console.warn('Failed to save song to localStorage:', e);
+      if (voiceMode === 'singing') {
+        // Singing voice mode
+        if (!prompt || prompt.trim().length === 0) {
+          throw new Error('Please enter a prompt for singing voice generation');
         }
+        
+        setGenerationProgress('Parsing prompt...');
+        const singingInput = parsePrompt(prompt);
+        setLyrics(singingInput.lyrics);
+        
+        setGenerationProgress('Synthesizing singing voice...');
+        audioUrl = await renderSingingTrack(
+          singingInput.lyrics,
+          singingInput.bpm,
+          singingInput.seconds,
+          singingInput.scale,
+          singingInput.preset,
+          singingInput.pan
+        );
+        
+        setGenerationProgress('Loading audio buffer...');
+        await audioEngineRef.current!.initialize();
+        const buffer = await audioEngineRef.current!.loadAudio(audioUrl);
+        audioBufferRef.current = buffer;
+        setDuration(buffer.duration);
+        
+        // Create minimal song result for singing mode
+        const songResult: SongResult = {
+          id: `song-${Date.now()}`,
+          title: `Singing Voice - ${singingInput.preset}`,
+          bpm: singingInput.bpm,
+          key: singingInput.scale === 'major' ? 'C Major' : 'A Minor',
+          harmonyMode: false,
+          mixedAudioUrl: audioUrl,
+          tracks: [{
+            objectId: 'singing-voice',
+            displayName: 'Singing Voice',
+            genre: 'Vocal',
+            vocalRange: 'alto',
+            enabled: true,
+            volume: 1.0,
+            waveform: []
+          }]
+        };
+        
+        setSongData(songResult);
+        setGenerationProgress('');
+        
       } else {
-        throw new Error(data.error || 'Failed to generate song metadata');
+        // Instrument mode (existing code)
+        const enabledObjects = objects.filter((obj) => obj.enabled);
+        
+        if (enabledObjects.length === 0) {
+          throw new Error('At least one object must be enabled');
+        }
+
+        // Step 1: Synthesize audio
+        setGenerationProgress('Synthesizing audio tracks...');
+        const audioBlob = await synthesizeSong(enabledObjects, 8);
+        audioUrl = createAudioUrl(audioBlob);
+        
+        // Step 2: Load audio buffer
+        setGenerationProgress('Loading audio buffer...');
+        await audioEngineRef.current!.initialize();
+        const buffer = await audioEngineRef.current!.loadAudio(audioUrl);
+        audioBufferRef.current = buffer;
+        setDuration(buffer.duration);
+        
+        // Step 3: Setup tracks
+        setGenerationProgress('Setting up mixer tracks...');
+        audioEngineRef.current!.setupTracks(buffer, enabledObjects);
+        
+        // Step 4: Generate metadata
+        setGenerationProgress('Generating song metadata...');
+        const response = await fetch('/api/generateSong', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            objects: enabledObjects,
+            harmonyMode,
+          }),
+        });
+        
+        const data = await response.json();
+        if (data.ok && data.data) {
+          // Replace the mock audio URL with our real one
+          const songResult = {
+            ...data.data,
+            mixedAudioUrl: audioUrl,
+          };
+          setSongData(songResult);
+          
+          // Save to localStorage
+          try {
+            localStorage.setItem('lastGeneratedSong', JSON.stringify(songResult));
+          } catch (e) {
+            console.warn('Failed to save song to localStorage:', e);
+          }
+        } else {
+          throw new Error(data.error || 'Failed to generate song metadata');
+        }
+        
+        setGenerationProgress('');
       }
-      
-      setGenerationProgress('');
     } catch (error) {
       console.error('Failed to generate song:', error);
       setError(error instanceof Error ? error.message : 'Failed to generate song');
@@ -208,39 +277,91 @@ export default function PreviewPlayer() {
     <div className="bg-white rounded-2xl p-8 shadow-lg space-y-6">
       <h2 className="text-3xl font-bold text-purple-900">Preview & Export</h2>
 
-      <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
-        <div className="grid grid-cols-3 gap-4 text-center">
-          <div>
-            <div className="text-3xl font-bold text-purple-600">
-              {enabledObjects.length}
-            </div>
-            <div className="text-sm text-gray-600">Active Objects</div>
+      {/* Voice Mode Toggle */}
+      <div className="flex gap-2 p-2 bg-gray-100 rounded-xl">
+        <button
+          onClick={() => setVoiceMode('instrument')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+            voiceMode === 'instrument'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+              : 'bg-white text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          🎹 Instrument Mode
+        </button>
+        <button
+          onClick={() => setVoiceMode('singing')}
+          className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+            voiceMode === 'singing'
+              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+              : 'bg-white text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          🎤 Singing Mode
+        </button>
+      </div>
+
+      {/* Singing Mode Prompt Input */}
+      {voiceMode === 'singing' && (
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl space-y-3">
+          <label className="block text-sm font-semibold text-gray-700">
+            Singing Prompt
+          </label>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g., soft soprano singing a dreamy melody about the moon"
+            className="w-full px-4 py-3 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:outline-none resize-none"
+            rows={3}
+          />
+          <div className="text-xs text-gray-600">
+            💡 Try: "energetic tenor at 140 bpm", "gentle alto singing about love in minor key"
           </div>
-          <div>
-            <div className="text-3xl font-bold text-pink-600">
-              {[...new Set(enabledObjects.map((obj) => obj.genre))].length}
+        </div>
+      )}
+
+      {/* Instrument Mode Stats */}
+      {voiceMode === 'instrument' && (
+        <div className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-3xl font-bold text-purple-600">
+                {enabledObjects.length}
+              </div>
+              <div className="text-sm text-gray-600">Active Objects</div>
             </div>
-            <div className="text-sm text-gray-600">Genres</div>
-          </div>
-          <div>
-            <div className="text-3xl font-bold text-purple-600">
-              {harmonyMode ? '🎼' : '🎵'}
+            <div>
+              <div className="text-3xl font-bold text-pink-600">
+                {[...new Set(enabledObjects.map((obj) => obj.genre))].length}
+              </div>
+              <div className="text-sm text-gray-600">Genres</div>
             </div>
-            <div className="text-sm text-gray-600">
-              {harmonyMode ? 'Harmony' : 'Solo'}
+            <div>
+              <div className="text-3xl font-bold text-purple-600">
+                {harmonyMode ? '🎼' : '🎵'}
+              </div>
+              <div className="text-sm text-gray-600">
+                {harmonyMode ? 'Harmony' : 'Solo'}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <button
         onClick={handleGenerateSong}
-        disabled={isGenerating || enabledObjects.length === 0}
-        aria-label="Generate song from enabled objects"
+        disabled={
+          isGenerating || 
+          (voiceMode === 'instrument' && enabledObjects.length === 0) ||
+          (voiceMode === 'singing' && !prompt)
+        }
+        aria-label={voiceMode === 'singing' ? 'Generate singing voice' : 'Generate song from enabled objects'}
         className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 transition-all shadow-lg"
       >
         {isGenerating
-          ? `⏳ ${generationProgress || 'Generating Song'}`
+          ? `⏳ ${generationProgress || 'Generating'}`
+          : voiceMode === 'singing'
+          ? '🎤 Generate Singing Voice'
           : '🎵 Generate Full Song'}
       </button>
 
@@ -303,6 +424,26 @@ export default function PreviewPlayer() {
             <div className="text-xs text-gray-400 text-center">
               Press <kbd className="px-2 py-1 bg-gray-800 rounded">Space</kbd> to play/pause
             </div>
+
+            {/* Lyric Display for Singing Mode */}
+            {voiceMode === 'singing' && lyrics && (
+              <div className="p-4 bg-gray-800 rounded-lg">
+                <div className="text-center text-lg leading-relaxed">
+                  {lyrics.split(/\s+/).map((word, index) => (
+                    <span
+                      key={index}
+                      className={`inline-block mx-1 transition-all duration-200 ${
+                        index === activeWordIndex
+                          ? 'text-purple-400 font-bold scale-110'
+                          : 'text-gray-300'
+                      }`}
+                    >
+                      {word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Per-Track Waveforms */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

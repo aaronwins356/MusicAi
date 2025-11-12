@@ -3,6 +3,9 @@ from typing import List, Literal, Optional
 
 # Vocal range types
 VocalRange = Literal['bass', 'tenor', 'alto', 'soprano']
+VoiceMode = Literal['instrument', 'singing']
+VoicePreset = Literal['alto-soft', 'tenor-bright', 'soprano-airy', 'baritone-warm']
+ScaleType = Literal['major', 'minor']
 
 
 class Mood(BaseModel):
@@ -10,6 +13,23 @@ class Mood(BaseModel):
     happy: float = Field(..., ge=0.0, le=1.0, description="Happiness level (0-1)")
     calm: float = Field(..., ge=0.0, le=1.0, description="Calmness level (0-1)")
     bright: float = Field(..., ge=0.0, le=1.0, description="Brightness level (0-1)")
+
+
+class SingingInput(BaseModel):
+    """Input for singing voice synthesis"""
+    lyrics: str = Field(..., description="Text lyrics to sing")
+    bpm: int = Field(..., ge=40, le=240, description="Tempo in beats per minute")
+    seconds: float = Field(..., ge=1.0, le=60.0, description="Duration in seconds")
+    scale: ScaleType = Field(default='major', description="Musical scale")
+    preset: VoicePreset = Field(..., description="Voice preset")
+    pan: float = Field(default=0.0, ge=-1.0, le=1.0, description="Stereo pan (-1=left, 1=right)")
+
+
+class Phoneme(BaseModel):
+    """Phoneme representation for synthesis"""
+    grapheme: str = Field(..., description="Original character/letter")
+    phoneme: str = Field(..., description="Phoneme representation")
+    duration: float = Field(..., ge=0.0, description="Duration in milliseconds")
 
 
 class SingingObject(BaseModel):
